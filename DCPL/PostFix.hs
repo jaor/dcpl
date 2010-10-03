@@ -13,95 +13,110 @@
 -- PostFix language (Chapter 1)
 --
 ------------------------------------------------------------------------------
-
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module DCPL.PostFix where
 
 import Control.Monad.State
 
-data StackElem = Val Integer | Cmd PostFix
+data StackElem = Val Integer | Cmd [Command]
 
-type PostFix = State [StackElem] ()
+type Command = State [StackElem] ()
 
-postfix :: Int -> PostFix -> [Integer] -> Integer
+instance Show Command where
+  show _ = "<PostFix command>"
+
+instance Eq Command where
+  _ == _ = False
+
+instance Num Command where
+  (+) = undefined
+  (-) = undefined
+  (*) = undefined
+  negate = undefined
+  abs = undefined
+  signum = undefined
+  fromInteger = push
+
+postfix :: Int -> Command -> [Integer] -> Integer
 postfix nArgs action args =
   if length args < nArgs then error "Not enough args"
   else case head (snd (runState action (map Val args))) of
            Val x -> x
            _ -> error "Stack doesn't contain an integer"
 
-postfix' :: Int -> [PostFix] -> [Integer] -> Integer
+postfix' :: Int -> [Command] -> [Integer] -> Integer
 postfix' nArgs actions = postfix nArgs (sequence_ actions)
 
-makePostFix :: ([StackElem] -> [StackElem]) -> PostFix
+makePostFix :: ([StackElem] -> [StackElem]) -> Command
 makePostFix f = State $ \s -> ((), f s)
 
-combine :: [PostFix] -> PostFix
-combine actions = makePostFix $ \s -> Cmd (sequence_ actions) : s
+combine :: [Command] -> Command
+combine actions = makePostFix $ \s -> Cmd actions : s
 
-exec :: PostFix
+exec :: Command
 exec = do
   s <- get
   case s of
-    Cmd action:_ -> pop >> action
+    Cmd actions:_ -> pop >> (sequence_ actions)
     Val x:_ -> error $ "Cannot apply exec to value " ++ show x
     _ -> error "Empty stack"
 
-push :: Integer -> PostFix
+push :: Integer -> Command
 push n = makePostFix $ \s -> Val n : s
 
-pop :: PostFix
+pop :: Command
 pop = makePostFix tail
 
-swap :: PostFix
+swap :: Command
 swap = makePostFix f
   where f (a:b:es) = b:a:es
         f _ = error "Stack underflow"
 
-nget :: PostFix
+nget :: Command
 nget = makePostFix f
   where f (Val n:es) = nth n es:es
         f _ = error "Cannot apply nget to non-number"
-        nth n es | n <= 0 =
-          error $ "sel: bad index (" ++ show n ++ ")"
+        nth n _ | n <= 0 = error $ "sel: bad index (" ++ show n ++ ")"
         nth _ [] = error "sel: bad index"
-        nth 0 (e:es) = e
-        nth n (e:es) = nth (n - 1) es
+        nth 0 (e:_) = e
+        nth n (_:es) = nth (n - 1) es
 
+makeArith :: (Integer -> Integer -> Integer) -> String -> Command
 makeArith op name = makePostFix f
-  where f [] = error $ "Not enough args in " ++ name
-        f [x] = error $ "Not enough args in " ++ name
-        f (Val x:Val y:as) = Val (op x y):as
+  where f s | length s < 2 = error $ "Not enough args in " ++ name
+        f (Val x:Val y:as) = Val (op y x):as
         f _ = error $ name ++ " applied to non-number"
 
-add :: PostFix
+add :: Command
 add = makeArith (+) "add"
 
-sub :: PostFix
+sub :: Command
 sub = makeArith (-) "sub"
 
-mul :: PostFix
+mul :: Command
 mul = makeArith (*) "mul"
 
-divp :: PostFix
+divp :: Command
 divp = makeArith div "divp"
 
-remp :: PostFix
+remp :: Command
 remp = makeArith rem "remp"
 
+makeCmp :: (Integer -> Integer -> Bool) -> String -> Command
 makeCmp op name = makeArith f name
   where f x y = if op x y then 1 else 0
 
-lt :: PostFix
+lt :: Command
 lt = makeCmp (<) "lt"
 
-gt :: PostFix
+gt :: Command
 gt = makeCmp (>) "gt"
 
-eq :: PostFix
+eq :: Command
 eq = makeCmp (==) "eq"
 
-sel :: PostFix
+sel :: Command
 sel = makePostFix f
   where f s | length s < 3 = error "Not enough args for sel"
         f (z:o:Val x:es) = (if x == 0 then z else o) : es
