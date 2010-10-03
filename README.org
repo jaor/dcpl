@@ -1,0 +1,5 @@
+* Design Concepts in Programming Languages
+
+  The plan is to implement the languages defined and used in the book
+  [[http://http://dcpl.mit.edu/][Design Concepts in Programming Languages]] as i study it, using
+  Haskell.
