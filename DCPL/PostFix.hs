@@ -39,26 +39,26 @@ instance Num Command where
   fromInteger = push
 
 postfix :: Int -> Command -> [Integer] -> Integer
-postfix nArgs action args =
+postfix nArgs cmd args =
   if length args < nArgs then error "Not enough args"
-  else case head (snd (runState action (map Val args))) of
+  else case head (snd (runState cmd (map Val args))) of
            Val x -> x
            _ -> error "Stack doesn't contain an integer"
 
 postfix' :: Int -> [Command] -> [Integer] -> Integer
-postfix' nArgs actions = postfix nArgs (sequence_ actions)
+postfix' nArgs cmds = postfix nArgs (sequence_ cmds)
 
 makePostFix :: ([StackElem] -> [StackElem]) -> Command
 makePostFix f = State $ \s -> ((), f s)
 
 combine :: [Command] -> Command
-combine actions = makePostFix $ \s -> Cmd actions : s
+combine cmds = makePostFix $ \s -> Cmd cmds : s
 
 exec :: Command
 exec = do
   s <- get
   case s of
-    Cmd actions:_ -> pop >> (sequence_ actions)
+    Cmd cmds:_ -> pop >> (sequence_ cmds)
     Val x:_ -> error $ "Cannot apply exec to value " ++ show x
     _ -> error "Empty stack"
 
