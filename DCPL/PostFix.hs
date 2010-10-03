@@ -19,14 +19,13 @@ module DCPL.PostFix where
 
 import Control.Monad.State
 
-data StackElem = Val Integer | Cmd [PostFix]
+data StackElem = Val Integer | Cmd PostFix
 
 type PostFix = State [StackElem] ()
 
 postfix :: Int -> PostFix -> [Integer] -> Integer
 postfix nArgs action args =
-  if (length args < nArgs)
-  then error "Not enough args"
+  if length args < nArgs then error "Not enough args"
   else case head (snd (runState action (map Val args))) of
            Val x -> x
            _ -> error "Stack doesn't contain an integer"
@@ -38,15 +37,15 @@ makePostFix :: ([StackElem] -> [StackElem]) -> PostFix
 makePostFix f = State $ \s -> ((), f s)
 
 combine :: [PostFix] -> PostFix
-combine actions = makePostFix $ \s -> Cmd actions : s
+combine actions = makePostFix $ \s -> Cmd (sequence_ actions) : s
 
 exec :: PostFix
 exec = do
   s <- get
   case s of
-    [] -> error "Empty stack"
-    Cmd actions:as -> put as >> sequence_ actions
+    Cmd action:_ -> pop >> action
     Val x:_ -> error $ "Cannot apply exec to value " ++ show x
+    _ -> error "Empty stack"
 
 push :: Integer -> PostFix
 push n = makePostFix $ \s -> Val n : s
@@ -61,7 +60,7 @@ swap = makePostFix f
 
 nget :: PostFix
 nget = makePostFix f
-  where f (Val n:es) = (nth n es):es
+  where f (Val n:es) = nth n es:es
         f _ = error "Cannot apply nget to non-number"
         nth n es | n <= 0 =
           error $ "sel: bad index (" ++ show n ++ ")"

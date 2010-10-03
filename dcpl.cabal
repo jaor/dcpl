@@ -19,11 +19,11 @@ Cabal-version:       >=1.2
 
 
 Library
-  -- Modules exported by the library.
-  Exposed-modules:   DCPL.PostFix
+  Ghc-options: -Wall
 
-  -- Packages needed in order to build this package.
-  Build-depends:     base >= 4.0, mtl >= 1.1
+  Exposed-modules: DCPL.PostFix
+
+  Build-depends: base >= 4.0, mtl >= 1.1
 
   -- Modules not exported by this package.
   -- Other-modules:
