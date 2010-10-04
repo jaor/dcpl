@@ -17,11 +17,9 @@
 
 module DCPL.PostFix where
 
-import Control.Monad.State
-
 data StackElem = Val Integer | Cmd [Command]
 
-type Command = State [StackElem] ()
+type Command = [StackElem] -> [StackElem]
 
 instance Show Command where
   show _ = "<PostFix command>"
@@ -41,49 +39,48 @@ instance Num Command where
 postfix :: Int -> Command -> [Integer] -> Integer
 postfix nArgs cmd args =
   if length args < nArgs then error "Not enough args"
-  else case head (snd (runState cmd (map Val args))) of
+  else case head $ cmd $ map Val args of
            Val x -> x
            _ -> error "Stack doesn't contain an integer"
 
 postfix' :: Int -> [Command] -> [Integer] -> Integer
-postfix' nArgs cmds = postfix nArgs (sequence_ cmds)
+postfix' nArgs cmds = postfix nArgs (merge cmds)
 
-makePostFix :: ([StackElem] -> [StackElem]) -> Command
-makePostFix f = State $ \s -> ((), f s)
+merge :: [Command] -> Command
+merge [] = id
+merge [c] = c
+merge (c:cs) = (merge cs) . c
 
 combine :: [Command] -> Command
-combine cmds = makePostFix $ \s -> Cmd cmds : s
+combine cmds = \s -> Cmd cmds : s
 
 exec :: Command
-exec = do
-  s <- get
+exec = \s ->
   case s of
-    Cmd cmds:_ -> pop >> (sequence_ cmds)
+    Cmd cmds:es -> merge cmds es
     Val x:_ -> error $ "Cannot apply exec to value " ++ show x
     _ -> error "Empty stack"
 
 push :: Integer -> Command
-push n = makePostFix $ \s -> Val n : s
+push n = \s -> Val n : s
 
 pop :: Command
-pop = makePostFix tail
+pop = tail
 
 swap :: Command
-swap = makePostFix f
-  where f (a:b:es) = b:a:es
-        f _ = error "Stack underflow"
+swap (a:b:es) = b:a:es
+swap _ = error "Stack underflow"
 
 nget :: Command
-nget = makePostFix f
-  where f (Val n:es) = nth n es:es
-        f _ = error "Cannot apply nget to non-number"
-        nth n _ | n <= 0 = error $ "sel: bad index (" ++ show n ++ ")"
+nget (Val n:es) = nth n es:es
+  where nth m _ | m <= 0 = error $ "sel: bad index (" ++ show m ++ ")"
         nth _ [] = error "sel: bad index"
         nth 0 (e:_) = e
-        nth n (_:es) = nth (n - 1) es
+        nth m (_:s) = nth (m - 1) s
+nget _ = error "Cannot apply nget to non-number"
 
 makeArith :: (Integer -> Integer -> Integer) -> String -> Command
-makeArith op name = makePostFix f
+makeArith op name = f
   where f s | length s < 2 = error $ "Not enough args in " ++ name
         f (Val x:Val y:as) = Val (op y x):as
         f _ = error $ name ++ " applied to non-number"
@@ -117,7 +114,6 @@ eq :: Command
 eq = makeCmp (==) "eq"
 
 sel :: Command
-sel = makePostFix f
-  where f s | length s < 3 = error "Not enough args for sel"
-        f (z:o:Val x:es) = (if x == 0 then z else o) : es
-        f _ = error "Cannot apply sel to non-number condition"
+sel s | length s < 3 = error "Not enough args for sel"
+sel (z:o:Val x:es) = (if x == 0 then z else o) : es
+sel _ = error "Cannot apply sel to non-number condition"

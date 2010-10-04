@@ -23,7 +23,7 @@ Library
 
   Exposed-modules: DCPL.PostFix
 
-  Build-depends: base >= 4.0, mtl >= 1.1
+  Build-depends: base >= 4.0
 
   -- Modules not exported by this package.
   -- Other-modules:
