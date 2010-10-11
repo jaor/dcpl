@@ -15,9 +15,18 @@
 ------------------------------------------------------------------------------
 {-# LANGUAGE TypeSynonymInstances #-}
 
-module DCPL.PostFix where
+module DCPL.PostFix (
+    Command
+  , postfix, postfix'
+  , subr, exec
+  , push, pop, swap
+  , nget, sel, dup
+  , add, sub, mul, divp, remp
+  , lt, gt, eq
+  , sNot, sAnd, sAnd'
+  ) where
 
-data StackElem = Val Integer | Cmd [Command]
+data StackElem = Val Integer | Subr [Command] deriving Show
 
 type Command = [StackElem] -> [StackElem]
 
@@ -49,20 +58,20 @@ postfix' nArgs cmds = postfix nArgs (merge cmds)
 merge :: [Command] -> Command
 merge [] = id
 merge [c] = c
-merge (c:cs) = (merge cs) . c
+merge (c:cs) = merge cs . c
 
-combine :: [Command] -> Command
-combine cmds = \s -> Cmd cmds : s
+subr :: [Command] -> Command
+subr cmds s = Subr cmds : s
 
 exec :: Command
-exec = \s ->
+exec s =
   case s of
-    Cmd cmds:es -> merge cmds es
+    Subr cmds:es -> merge cmds es
     Val x:_ -> error $ "Cannot apply exec to value " ++ show x
     _ -> error "Empty stack"
 
 push :: Integer -> Command
-push n = \s -> Val n : s
+push n s = Val n : s
 
 pop :: Command
 pop = tail
@@ -73,11 +82,15 @@ swap _ = error "Stack underflow"
 
 nget :: Command
 nget (Val n:es) = nth n es:es
-  where nth m _ | m <= 0 = error $ "sel: bad index (" ++ show m ++ ")"
-        nth _ [] = error "sel: bad index"
+  where nth m _ | m <= 0 = error $ "nget: bad index (" ++ show m ++ ")"
+        nth _ [] = error "nget: bad index"
         nth 0 (e:_) = e
         nth m (_:s) = nth (m - 1) s
 nget _ = error "Cannot apply nget to non-number"
+
+dup :: Command
+dup (x:xs) = x:x:xs
+dup _ = error "Stack underflow"
 
 makeArith :: (Integer -> Integer -> Integer) -> String -> Command
 makeArith op name = f
@@ -117,3 +130,12 @@ sel :: Command
 sel s | length s < 3 = error "Not enough args for sel"
 sel (z:o:Val x:es) = (if x == 0 then z else o) : es
 sel _ = error "Cannot apply sel to non-number condition"
+
+sNot :: Command
+sNot = subr [0, 1, sel]
+
+sAnd :: Command
+sAnd = subr [mul, 0, eq, sNot, exec]
+
+sAnd' :: Command
+sAnd' = subr [sNot, exec, subr [pop, 0], subr [], sel, exec]

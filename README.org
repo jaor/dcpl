@@ -2,4 +2,4 @@
 
   The plan is to implement the languages defined and used in the book
   [[http://dcpl.mit.edu/][Design Concepts in Programming Languages]] as i study it, using
-  Haskell.
+  [[http://haskell.org/][Haskell]] and/or [[http://racket-lang.org/][Racket]].
